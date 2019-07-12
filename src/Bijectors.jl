@@ -14,7 +14,9 @@ export  TransformDistribution,
         PDMatDistribution,
         link,
         invlink,
-        logpdf_with_trans
+        logpdf_with_trans,
+        link_jacobian,
+        invlink_jacobian
 
 const DEBUG = Bool(parse(Int, get(ENV, "DEBUG_BIJECTORS", "0")))
 
