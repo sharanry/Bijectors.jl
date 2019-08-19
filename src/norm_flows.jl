@@ -37,17 +37,19 @@ planar_flow_m(x) = -1 .+ softplus.(x)   # for planar flow from A.1
 dtanh(x) = 1 .- (tanh.(x)) .^ 2         # for planar flow
 ψ(z, w, b) = dtanh(w' * z .+ b) .* w    # for planar flow from eq(11)
 
-function transform(flow::PlanarLayer, z)
+function _transform(flow::PlanarLayer, z)
     u_hat = get_u_hat(flow.u, flow.w)
-    return z + u_hat * tanh.(flow.w' * z .+ flow.b) # from eq(10)
+    transformed = z + u_hat * tanh.(flow.w' * z .+ flow.b) # from eq(10)
+    return (transformed=transformed, u_hat=u_hat)
 end
 
+transform(flow::PlanarLayer, z) = _transform(flow, z).transformed
+
 function forward(flow::T, z) where {T<:PlanarLayer}
-    u_hat = get_u_hat(flow.u, flow.w)
+    transformed, u_hat = _transform(flow, z)
     # Compute log_det_jacobian
     psi = ψ(z, flow.w, flow.b)
     log_det_jacobian = log.(abs.(1.0 .+ psi' * u_hat))      # from eq(12)
-    transformed = z + u_hat * tanh.(flow.w' * z .+ flow.b)
     return (rv=transformed, logabsdetjac=log_det_jacobian)  # from eq(10)
 end
 
@@ -110,8 +112,8 @@ function forward(flow::T, z) where {T<:RadialLayer}
     d = size(flow.z_0, 1)
     h_ = h(α, r)
     log_det_jacobian = @. (
-        (d - 1) * log(1.0 + res.β_hat * h_)
-        + log(1.0 +  res.β_hat * h_ + res.β_hat * (- h_ ^ 2) * res.r)
+        (d - 1) * log(1.0 + β_hat * h_)
+        + log(1.0 +  β_hat * h_ + β_hat * (- h_ ^ 2) * r)
     )   # from eq(14)
     return (rv=transformed, logabsdetjac=log_det_jacobian)
 end
