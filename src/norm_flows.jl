@@ -95,7 +95,7 @@ dh(α, r) = - h(α, r) .^ 2   # for radial flow; derivative of h()
 function transform(flow::RadialLayer, z)
     α = softplus(flow.α_[1])            # from A.2
     β_hat = -α + softplus(flow.β[1])    # from A.2
-    r = transpose(norm.([z[:,i] .- flow.z_0 for i in 1:size(z, 2)], 2))
+    r = norm.([z[:,i] .- flow.z_0 for i in 1:size(z, 2)], 2)'
     return z + β_hat .* h(α, r) .* (z .- flow.z_0)  # from eq(14)
 end
 
