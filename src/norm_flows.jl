@@ -92,24 +92,26 @@ end
 h(α, r) = 1 ./ (α .+ r)     # for radial flow from eq(14)
 dh(α, r) = - h(α, r) .^ 2   # for radial flow; derivative of h()
 
-function transform(flow::RadialLayer, z)
-    α = softplus(flow.α_[1])            # from A.2
-    β_hat = -α + softplus(flow.β[1])    # from A.2
-    r = norm.([z[:,i] .- flow.z_0 for i in 1:size(z, 2)], 2)'
-    return z + β_hat .* h(α, r) .* (z .- flow.z_0)  # from eq(14)
-end
-
-function forward(flow::T, z) where {T<:RadialLayer}
+# An internal version of transform that 
+# returns intermediate variables
+function _transform(flow::RadialLayer, z)
     α = softplus(flow.α_[1])            # from A.2
     β_hat = -α + softplus(flow.β[1])    # from A.2
     r = norm.([z[:,i] .- flow.z_0 for i in 1:size(z, 2)], 2)'
     transformed = z + β_hat .* h(α, r) .* (z .- flow.z_0)   # from eq(14)
+    return (transformed=transformed, α=α, β_hat=β_hat, r=r)
+end
+
+transform(flow::RadialLayer, z) = _transform(flow, z).transformed
+
+function forward(flow::T, z) where {T<:RadialLayer}
+    transformed, α, β_hat, r = _transform(flow, z)
     # Compute log_det_jacobian
     d = size(flow.z_0, 1)
     h_ = h(α, r)
     log_det_jacobian = @. (
-        (d-1) * log(1.0 + β_hat * h_)
-        + log(1.0 +  β_hat * h_ + β_hat * (- h_ ^ 2) * r)
+        (d - 1) * log(1.0 + res.β_hat * h_)
+        + log(1.0 +  res.β_hat * h_ + res.β_hat * (- h_ ^ 2) * res.r)
     )   # from eq(14)
     return (rv=transformed, logabsdetjac=log_det_jacobian)
 end
