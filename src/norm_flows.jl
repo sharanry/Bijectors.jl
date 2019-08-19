@@ -37,6 +37,7 @@ planar_flow_m(x) = -1 .+ softplus.(x)   # for planar flow from A.1
 dtanh(x) = 1 .- (tanh.(x)) .^ 2         # for planar flow
 ψ(z, w, b) = dtanh(w' * z .+ b) .* w    # for planar flow from eq(11)
 
+# An internal version of transform that returns intermediate variables
 function _transform(flow::PlanarLayer, z)
     u_hat = get_u_hat(flow.u, flow.w)
     transformed = z + u_hat * tanh.(flow.w' * z .+ flow.b) # from eq(10)
@@ -55,23 +56,13 @@ end
 
 function inv(flow::PlanarLayer, y)
     u_hat = get_u_hat(flow.u, flow.w)
-    # Implemented with reference from A.1
-    function f(y)
-        return loss(alpha) = (
-                (flow.w' * y)[1] - alpha
-                - (flow.w' * u_hat)[1]
-                * tanh(alpha+flow.b[1])
-            )
-    end
+    # Define the objective functional; implemented with reference from A.1
+    f(y) = alpha -> (flow.w' * y)[1] - alpha - (flow.w' * u_hat)[1] * tanh(alpha+flow.b[1])
+    # Run solver 
     alphas_ = [find_zero(f(y[:,i:i]), 0.0, Order16()) for i in 1:size(y, 2)]
     alphas = alphas_'
     z_para = (flow.w ./ norm(flow.w,2)) * alphas
-    z_per = (
-            y - z_para - u_hat * tanh.(
-                                    flow.w' * z_para
-                                    .+ flow.b
-            )
-    )
+    z_per = y - z_para - u_hat * tanh.(flow.w' * z_para .+ flow.b)
 
     return z_para + z_per
 end
@@ -94,8 +85,7 @@ end
 h(α, r) = 1 ./ (α .+ r)     # for radial flow from eq(14)
 dh(α, r) = - h(α, r) .^ 2   # for radial flow; derivative of h()
 
-# An internal version of transform that 
-# returns intermediate variables
+# An internal version of transform that returns intermediate variables
 function _transform(flow::RadialLayer, z)
     α = softplus(flow.α_[1])            # from A.2
     β_hat = -α + softplus(flow.β[1])    # from A.2
@@ -121,13 +111,9 @@ end
 function inv(flow::RadialLayer, y)
     α = softplus(flow.α_[1])            # from A.2
     β_hat = - α + softplus(flow.β[1])   # from A.2
-    function f(y)
-        # From eq(26)
-        return loss(r) = (
-                        norm(y - flow.z_0, 2)
-                        - r * (1 + β_hat / (α + r))
-                        )
-    end
+    # Define the objective functional
+    f(y) = r -> norm(y - flow.z_0, 2) - r * (1 + β_hat / (α + r))   # from eq(26)
+    # Run solver 
     rs = [find_zero(f(y[:,i:i]), 0.0, Order16()) for i in 1:size(y, 2)]'    # from A.2
     z_hat = (y .- flow.z_0) ./ (rs .* (1 .+ β_hat ./ (α .+ rs)))            # from eq(25)
     z = flow.z_0 .+ rs .* z_hat # from A.2
